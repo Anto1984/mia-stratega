@@ -115,17 +115,18 @@ plot(show_mas ? ma50  : na, "MA 50",  color=color.orange, linewidth=2)
 plot(show_mas ? ma100 : na, "MA 100", color=color.yellow, linewidth=2)
 plot(show_mas ? ma150 : na, "MA 150", color=color.white,  linewidth=2)
 
-_dot_size = switch dot_size_str
-    "Tiny"  => size.tiny
-    "Small" => size.small
-    "Large" => size.large
-    "Huge"  => size.huge
-    =>         size.normal
+// plotshape richiede 'size' come const string: una chiamata per ogni dimensione
+plotshape(long_sig  and dot_size_str == "Tiny",   "Long Tiny",   shape.circle, location.belowbar, dot_color_long,  size=size.tiny)
+plotshape(long_sig  and dot_size_str == "Small",  "Long Small",  shape.circle, location.belowbar, dot_color_long,  size=size.small)
+plotshape(long_sig  and dot_size_str == "Normal", "Long Normal", shape.circle, location.belowbar, dot_color_long,  size=size.normal)
+plotshape(long_sig  and dot_size_str == "Large",  "Long Large",  shape.circle, location.belowbar, dot_color_long,  size=size.large)
+plotshape(long_sig  and dot_size_str == "Huge",   "Long Huge",   shape.circle, location.belowbar, dot_color_long,  size=size.huge)
 
-plotshape(long_sig,  "Long Signal",  shape.circle,
-     location.belowbar, dot_color_long,  size=_dot_size)
-plotshape(short_sig, "Short Signal", shape.circle,
-     location.abovebar, dot_color_short, size=_dot_size)
+plotshape(short_sig and dot_size_str == "Tiny",   "Short Tiny",   shape.circle, location.abovebar, dot_color_short, size=size.tiny)
+plotshape(short_sig and dot_size_str == "Small",  "Short Small",  shape.circle, location.abovebar, dot_color_short, size=size.small)
+plotshape(short_sig and dot_size_str == "Normal", "Short Normal", shape.circle, location.abovebar, dot_color_short, size=size.normal)
+plotshape(short_sig and dot_size_str == "Large",  "Short Large",  shape.circle, location.abovebar, dot_color_short, size=size.large)
+plotshape(short_sig and dot_size_str == "Huge",   "Short Huge",   shape.circle, location.abovebar, dot_color_short, size=size.huge)
 
 // ══════════════════════════════════════════════════════════════════════════════
 //  ALERTS
