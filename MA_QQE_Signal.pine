@@ -236,8 +236,10 @@ bull_ema = ema50 > ema100 and ema100 > ema150
 bear_ema = ema50 < ema100 and ema100 < ema150
 
 // 2. Prezzo tocca EMA50 (attraversa o rimbalza) + corpo intero chiude fuori
-bull_touch = low  <= ema50 and math.min(open, close) > ema50
-bear_touch = high >= ema50 and math.max(open, close) < ema50
+//    La candela PRECEDENTE deve già chiudere fuori dall'EMA50:
+//    questo evita segnali sul "primo incrocio" e cattura solo i veri rimbalzi/dip.
+bull_touch = low  <= ema50 and math.min(open, close) > ema50 and close[1] > ema50[1]
+bear_touch = high >= ema50 and math.max(open, close) < ema50 and close[1] < ema50[1]
 
 // 3. QQE MOD: barra verde / rossa
 // 4. Trend Meter: tutte le aree verdi / rosse
