@@ -1,0 +1,144 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0
+// © mia-stratega
+
+//@version=5
+indicator("MA + QQE MOD Signal", overlay=true, max_labels_count=500)
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  IMPOSTAZIONI - MEDIE MOBILI
+// ══════════════════════════════════════════════════════════════════════════════
+grpMA = "Medie Mobili"
+ma_type   = input.string("SMA",  "Tipo Media",    options=["SMA","EMA","WMA","HMA"], group=grpMA)
+ma50_len  = input.int(50,  "Periodo MA 50",  minval=1, group=grpMA)
+ma100_len = input.int(100, "Periodo MA 100", minval=1, group=grpMA)
+ma150_len = input.int(150, "Periodo MA 150", minval=1, group=grpMA)
+show_mas  = input.bool(true, "Mostra Medie Mobili", group=grpMA)
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  IMPOSTAZIONI - QQE MOD
+// ══════════════════════════════════════════════════════════════════════════════
+grpQQE = "QQE MOD"
+rsi_len   = input.int(14,     "RSI Length (Lento)",       minval=1,   group=grpQQE)
+sf        = input.int(5,      "RSI Smoothing (Lento)",    minval=1,   group=grpQQE)
+qqef      = input.float(4.238,"QQE Factor (Lento)",       minval=0.1, group=grpQQE)
+rsi_len2  = input.int(6,      "RSI Length (Veloce)",      minval=1,   group=grpQQE)
+sf2       = input.int(5,      "RSI Smoothing (Veloce)",   minval=1,   group=grpQQE)
+qqef2     = input.float(1.618,"QQE Factor (Veloce)",      minval=0.1, group=grpQQE)
+threshold = input.float(3.0,  "Threshold (filtro forza)", minval=0.0, group=grpQQE)
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  IMPOSTAZIONI - SEGNALI E ALERT
+// ══════════════════════════════════════════════════════════════════════════════
+grpSig = "Segnali"
+dot_color_long  = input.color(color.yellow, "Colore Pallino Long",  group=grpSig)
+dot_color_short = input.color(color.yellow, "Colore Pallino Short", group=grpSig)
+dot_size_str    = input.string("Normal", "Dimensione Pallino",
+     options=["Tiny","Small","Normal","Large","Huge"], group=grpSig)
+alert_msg_long  = input.string("LONG Signal - MA + QQE MOD",  "Messaggio Alert Long",  group=grpSig)
+alert_msg_short = input.string("SHORT Signal - MA + QQE MOD", "Messaggio Alert Short", group=grpSig)
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  CALCOLO MEDIE MOBILI
+// ══════════════════════════════════════════════════════════════════════════════
+f_ma(src, len, t) =>
+    switch t
+        "SMA" => ta.sma(src, len)
+        "EMA" => ta.ema(src, len)
+        "WMA" => ta.wma(src, len)
+        "HMA" => ta.hma(src, len)
+
+ma50  = f_ma(close, ma50_len,  ma_type)
+ma100 = f_ma(close, ma100_len, ma_type)
+ma150 = f_ma(close, ma150_len, ma_type)
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  CALCOLO QQE MOD
+//  Algoritmo: Quantitative Qualitative Estimation (QQE) applicato all'RSI.
+//  Produce una linea di segnale smoothed (fast_atr_tl) e la media RSI (rsi_ema).
+//  La differenza tra la versione veloce e lenta forma l'istogramma colorato.
+// ══════════════════════════════════════════════════════════════════════════════
+f_qqe(rsi_length, smoothing, factor) =>
+    rsi_val  = ta.rsi(close, rsi_length)
+    rsi_ema  = ta.ema(rsi_val, smoothing)
+    atr_diff = math.abs(rsi_ema[1] - rsi_ema)
+    ma_atr   = ta.ema(atr_diff, rsi_length * 4 - 1)
+    delta    = ta.ema(ma_atr,   rsi_length * 4 - 1) * factor
+
+    var float lb = 0.0
+    var float sb = 0.0
+    var int   tr = 1
+
+    lb := rsi_ema > nz(lb[1]) ? math.max(nz(lb[1]), rsi_ema - delta) : rsi_ema - delta
+    sb := rsi_ema < nz(sb[1]) ? math.min(nz(sb[1]), rsi_ema + delta) : rsi_ema + delta
+    tr := ta.crossover(rsi_ema,  sb[1]) ?  1 :
+          ta.crossunder(rsi_ema, lb[1]) ? -1 : nz(tr[1], 1)
+
+    signal = tr == 1 ? lb : sb
+    [rsi_ema, signal, tr]
+
+// Linea lenta  → "linea bianca" visibile nel pannello QQE MOD
+// Linea veloce → barre dell'istogramma (verde/rosso)
+[rsi_slow, _sig_slow, _tr_slow] = f_qqe(rsi_len,  sf,  qqef)
+[rsi_fast, _sig_fast, _tr_fast] = f_qqe(rsi_len2, sf2, qqef2)
+
+// Istogramma: differenza fast − slow
+qqe_hist = rsi_fast - rsi_slow
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  CONDIZIONI SEGNALE
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── 1. Medie mobili in ordine ─────────────────────────────────────────────────
+bull_ma = ma50 > ma100 and ma100 > ma150   // ordine rialzista
+bear_ma = ma50 < ma100 and ma100 < ma150   // ordine ribassista
+
+// ── 2. Candela tocca MA50 solo con l'ombra, corpo chiude fuori ────────────────
+// LONG : ombra inferiore tocca/attraversa MA50, ma min(open,close) > MA50
+bull_touch = low  <= ma50 and math.min(open, close) > ma50
+// SHORT: ombra superiore tocca/attraversa MA50, ma max(open,close) < MA50
+bear_touch = high >= ma50 and math.max(open, close) < ma50
+
+// ── 3. QQE MOD: istogramma + linea lenta ─────────────────────────────────────
+// LONG : barre verdi (hist > 0) + linea lenta sopra la metà (> 50 + threshold)
+bull_qqe = qqe_hist > 0 and rsi_slow > (50 + threshold)
+// SHORT: barre rosse (hist < 0) + linea lenta sotto la metà (< 50 - threshold)
+bear_qqe = qqe_hist < 0 and rsi_slow < (50 - threshold)
+
+// ── Segnale finale ────────────────────────────────────────────────────────────
+long_sig  = bull_ma and bull_touch and bull_qqe
+short_sig = bear_ma and bear_touch and bear_qqe
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  PLOTS
+// ══════════════════════════════════════════════════════════════════════════════
+plot(show_mas ? ma50  : na, "MA 50",  color=color.orange, linewidth=2)
+plot(show_mas ? ma100 : na, "MA 100", color=color.yellow, linewidth=2)
+plot(show_mas ? ma150 : na, "MA 150", color=color.white,  linewidth=2)
+
+f_size(s) =>
+    switch s
+        "Tiny"   => size.tiny
+        "Small"  => size.small
+        "Normal" => size.normal
+        "Large"  => size.large
+        => size.huge
+
+plotshape(long_sig,  "Long Signal",  shape.circle,
+     location.belowbar, dot_color_long,  size=f_size(dot_size_str))
+plotshape(short_sig, "Short Signal", shape.circle,
+     location.abovebar, dot_color_short, size=f_size(dot_size_str))
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  ALERTS
+//  Come attivare il suono:
+//  1. Clicca "Alert" su TradingView
+//  2. Condizione → scegli questo indicatore → "Long Signal" o "Short Signal"
+//  3. Notifiche → spunta "Suono" e scegli il suono desiderato
+// ══════════════════════════════════════════════════════════════════════════════
+alertcondition(long_sig,  "Long Signal",  "LONG: MA ordine rialzista + tocco MA50 + QQE bullish")
+alertcondition(short_sig, "Short Signal", "SHORT: MA ordine ribassista + tocco MA50 + QQE bearish")
+
+if long_sig
+    alert(alert_msg_long,  alert.freq_once_per_bar)
+if short_sig
+    alert(alert_msg_short, alert.freq_once_per_bar)
