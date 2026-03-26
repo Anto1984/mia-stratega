@@ -172,33 +172,54 @@ MA4dir = MA4 > MA4[1]
 ma_cross1 = MA1 > MA2
 ma_cross2 = MA3 > MA4
 
-// — Selettore Trend Meter (funzione con valori pre-calcolati come parametri) —
-f_tm(sel, v_macd, v_fmacd, v_momdad, v_rsisig, v_rsi13, v_rsi5, v_tc) =>
-    sel == "MACD Crossover - 12, 26, 9"             ? v_macd   :
-    sel == "MACD Crossover - Fast - 8, 21, 5"       ? v_fmacd  :
-    sel == "Mom Dad Cross (Top Dog Trading)"         ? v_momdad :
-    sel == "RSI Signal Line Cross - RSI 13, Sig 21" ? v_rsisig :
-    sel == "RSI 13: > or < 50"                      ? v_rsi13  :
-    sel == "RSI 5: > or < 50"                       ? v_rsi5   :
-    sel == "Trend Candles"                           ? v_tc     : false
+// — Selettore Trend Meter (switch expression per ogni TM) —
+TM1 = switch TM1_sel
+    "MACD Crossover - 12, 26, 9"             => macd_cross
+    "MACD Crossover - Fast - 8, 21, 5"       => fmacd_cross
+    "Mom Dad Cross (Top Dog Trading)"         => mom_over_dad
+    "RSI Signal Line Cross - RSI 13, Sig 21" => rsi_sig_cross
+    "RSI 13: > or < 50"                      => rsi13_above50
+    "RSI 5: > or < 50"                       => rsi5_above50
+    "Trend Candles"                           => trend_candle
+    =>                                           false
 
-TM1 = f_tm(TM1_sel, macd_cross, fmacd_cross, mom_over_dad, rsi_sig_cross, rsi13_above50, rsi5_above50, trend_candle)
-TM2 = f_tm(TM2_sel, macd_cross, fmacd_cross, mom_over_dad, rsi_sig_cross, rsi13_above50, rsi5_above50, trend_candle)
-TM3 = f_tm(TM3_sel, macd_cross, fmacd_cross, mom_over_dad, rsi_sig_cross, rsi13_above50, rsi5_above50, trend_candle)
+TM2 = switch TM2_sel
+    "MACD Crossover - 12, 26, 9"             => macd_cross
+    "MACD Crossover - Fast - 8, 21, 5"       => fmacd_cross
+    "Mom Dad Cross (Top Dog Trading)"         => mom_over_dad
+    "RSI Signal Line Cross - RSI 13, Sig 21" => rsi_sig_cross
+    "RSI 13: > or < 50"                      => rsi13_above50
+    "RSI 5: > or < 50"                       => rsi5_above50
+    "Trend Candles"                           => trend_candle
+    =>                                           false
+
+TM3 = switch TM3_sel
+    "MACD Crossover - 12, 26, 9"             => macd_cross
+    "MACD Crossover - Fast - 8, 21, 5"       => fmacd_cross
+    "Mom Dad Cross (Top Dog Trading)"         => mom_over_dad
+    "RSI Signal Line Cross - RSI 13, Sig 21" => rsi_sig_cross
+    "RSI 13: > or < 50"                      => rsi13_above50
+    "RSI 5: > or < 50"                       => rsi5_above50
+    "Trend Candles"                           => trend_candle
+    =>                                           false
 
 // Tutti e 3 i Trend Meter concordi
 tm3_green = TM1 and TM2 and TM3
 tm3_red   = not TM1 and not TM2 and not TM3
 
 // Trend Bar 1
-tb1_result = TB1_sel == "MA Direction - Fast MA - TB1" ? MA1dir :
-             TB1_sel == "MA Direction - Slow MA - TB1" ? MA2dir : ma_cross1
+tb1_result = switch TB1_sel
+    "MA Direction - Fast MA - TB1" => MA1dir
+    "MA Direction - Slow MA - TB1" => MA2dir
+    =>                                ma_cross1
 TB1_green  = tb1_result
 TB1_red    = not tb1_result
 
 // Trend Bar 2
-tb2_result = TB2_sel == "MA Direction - Fast MA - TB2" ? MA3dir :
-             TB2_sel == "MA Direction - Slow MA - TB2" ? MA4dir : ma_cross2
+tb2_result = switch TB2_sel
+    "MA Direction - Fast MA - TB2" => MA3dir
+    "MA Direction - Slow MA - TB2" => MA4dir
+    =>                                ma_cross2
 TB2_green  = tb2_result
 TB2_red    = not tb2_result
 
