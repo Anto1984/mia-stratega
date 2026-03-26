@@ -149,8 +149,8 @@ ha_open  := na(ha_open[1]) ? (open + close) / 2 : (ha_open[1] + ha_close[1]) / 2
 ha_bull  = ha_close - ha_open > 0 ? 1 : 0
 
 f_inside(i) =>
-    haopen <= math.max(ha_open[i], ha_close[i]) and
-     haopen >= math.min(ha_open[i], ha_close[i]) and
+    ha_open <= math.max(ha_open[i], ha_close[i]) and
+     ha_open >= math.min(ha_open[i], ha_close[i]) and
      ha_close <= math.max(ha_open[i], ha_close[i]) and
      ha_close >= math.min(ha_open[i], ha_close[i]) ? 1 : 0
 
