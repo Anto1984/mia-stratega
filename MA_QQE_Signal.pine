@@ -1,5 +1,6 @@
 // This source code is subject to the terms of the Mozilla Public License 2.0
 // © mia-stratega
+// Trend Meter logic originally by Lij_MC (converted to Pine Script v5)
 
 //@version=5
 indicator("MA + QQE MOD Signal", overlay=true, max_labels_count=500)
@@ -17,12 +18,51 @@ show_emas  = input.bool(true, "Mostra EMA", group=grpMA)
 //  QQE MOD
 // ══════════════════════════════════════════════════════════════════════════════
 grpQQE = "QQE MOD"
-ql1    = input.int(14,     "RSI Length Lento",   minval=1,   group=grpQQE)
-qs1    = input.int(5,      "RSI Smooth Lento",   minval=1,   group=grpQQE)
-qf1    = input.float(4.238,"QQE Factor Lento",   minval=0.1, group=grpQQE)
-ql2    = input.int(6,      "RSI Length Veloce",  minval=1,   group=grpQQE)
-qs2    = input.int(5,      "RSI Smooth Veloce",  minval=1,   group=grpQQE)
-qf2    = input.float(1.618,"QQE Factor Veloce",  minval=0.1, group=grpQQE)
+ql1    = input.int(14,      "RSI Length Lento",  minval=1,   group=grpQQE)
+qs1    = input.int(5,       "RSI Smooth Lento",  minval=1,   group=grpQQE)
+qf1    = input.float(4.238, "QQE Factor Lento",  minval=0.1, group=grpQQE)
+ql2    = input.int(6,       "RSI Length Veloce", minval=1,   group=grpQQE)
+qs2    = input.int(5,       "RSI Smooth Veloce", minval=1,   group=grpQQE)
+qf2    = input.float(1.618, "QQE Factor Veloce", minval=0.1, group=grpQQE)
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  TREND METER — 3 Trend Meters
+// ══════════════════════════════════════════════════════════════════════════════
+grpTM   = "Trend Meter"
+TM1_sel = input.string("MACD Crossover - Fast - 8, 21, 5", "Trend Meter 1",
+     options=["MACD Crossover - 12, 26, 9", "MACD Crossover - Fast - 8, 21, 5",
+              "Mom Dad Cross (Top Dog Trading)", "RSI Signal Line Cross - RSI 13, Sig 21",
+              "RSI 13: > or < 50", "RSI 5: > or < 50", "Trend Candles", "N/A"], group=grpTM)
+TM2_sel = input.string("RSI 13: > or < 50", "Trend Meter 2",
+     options=["MACD Crossover - 12, 26, 9", "MACD Crossover - Fast - 8, 21, 5",
+              "Mom Dad Cross (Top Dog Trading)", "RSI Signal Line Cross - RSI 13, Sig 21",
+              "RSI 13: > or < 50", "RSI 5: > or < 50", "Trend Candles", "N/A"], group=grpTM)
+TM3_sel = input.string("RSI 5: > or < 50", "Trend Meter 3",
+     options=["MACD Crossover - 12, 26, 9", "MACD Crossover - Fast - 8, 21, 5",
+              "Mom Dad Cross (Top Dog Trading)", "RSI Signal Line Cross - RSI 13, Sig 21",
+              "RSI 13: > or < 50", "RSI 5: > or < 50", "Trend Candles", "N/A"], group=grpTM)
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  TREND METER — Trend Bar 1
+// ══════════════════════════════════════════════════════════════════════════════
+grpTB1    = "Trend Bar 1"
+TB1_sel   = input.string("MA Crossover", "Tipo",
+     options=["MA Crossover", "MA Direction - Fast MA - TB1", "MA Direction - Slow MA - TB1"], group=grpTB1)
+MA1_len   = input.int(5,  "Fast MA", minval=1, group=grpTB1, inline="tb1f")
+MA1_type  = input.string("EMA", "",  options=["EMA", "SMA"],  group=grpTB1, inline="tb1f")
+MA2_len   = input.int(11, "Slow MA", minval=1, group=grpTB1, inline="tb1s")
+MA2_type  = input.string("EMA", "",  options=["EMA", "SMA"],  group=grpTB1, inline="tb1s")
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  TREND METER — Trend Bar 2
+// ══════════════════════════════════════════════════════════════════════════════
+grpTB2    = "Trend Bar 2"
+TB2_sel   = input.string("MA Crossover", "Tipo",
+     options=["MA Crossover", "MA Direction - Fast MA - TB2", "MA Direction - Slow MA - TB2"], group=grpTB2)
+MA3_len   = input.int(13, "Fast MA", minval=1, group=grpTB2, inline="tb2f")
+MA3_type  = input.string("EMA", "",  options=["EMA", "SMA"],  group=grpTB2, inline="tb2f")
+MA4_len   = input.int(36, "Slow MA", minval=1, group=grpTB2, inline="tb2s")
+MA4_type  = input.string("SMA", "",  options=["EMA", "SMA"],  group=grpTB2, inline="tb2s")
 
 // ══════════════════════════════════════════════════════════════════════════════
 //  SEGNALE
@@ -36,7 +76,7 @@ alert_msg_long  = input.string("LONG Signal",  "Messaggio Alert Long",  group=gr
 alert_msg_short = input.string("SHORT Signal", "Messaggio Alert Short", group=grpSig)
 
 // ══════════════════════════════════════════════════════════════════════════════
-//  CALCOLO EMA
+//  CALCOLO EMA (50 / 100 / 150)
 // ══════════════════════════════════════════════════════════════════════════════
 ema50  = ta.ema(close, ema50_len)
 ema100 = ta.ema(close, ema100_len)
@@ -44,8 +84,6 @@ ema150 = ta.ema(close, ema150_len)
 
 // ══════════════════════════════════════════════════════════════════════════════
 //  CALCOLO QQE MOD
-//  Restituisce la RSI smoothed (rsi_ema). La differenza fast-slow forma
-//  l'istogramma: fast > slow = barra verde, fast < slow = barra rossa.
 // ══════════════════════════════════════════════════════════════════════════════
 f_qqe(len, sm, fac) =>
     rsi   = ta.rsi(close, len)
@@ -61,37 +99,130 @@ f_qqe(len, sm, fac) =>
     tr := ta.crossover(rma, sb[1]) ? 1 : ta.crossunder(rma, lb[1]) ? -1 : nz(tr[1], 1)
     rma
 
-rsi_slow = f_qqe(ql1, qs1, qf1)
-rsi_fast = f_qqe(ql2, qs2, qf2)
+rsi_slow  = f_qqe(ql1, qs1, qf1)
+rsi_fast  = f_qqe(ql2, qs2, qf2)
+qqe_green = rsi_fast > rsi_slow
+qqe_red   = rsi_fast < rsi_slow
 
-qqe_green = rsi_fast > rsi_slow   // barra verde
-qqe_red   = rsi_fast < rsi_slow   // barra rossa
+// ══════════════════════════════════════════════════════════════════════════════
+//  CALCOLO TREND METER (logica originale Lij_MC, convertita in v5)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// — MACD standard (12,26,9) —
+macd_line  = ta.ema(close, 12) - ta.ema(close, 26)
+macd_sig   = ta.ema(macd_line, 9)
+macd_hist  = macd_line - macd_sig
+macd_cross = macd_hist > 0
+
+// — MACD veloce (8,21,5) —
+fmacd_line  = ta.ema(close, 8) - ta.ema(close, 21)
+fmacd_sig   = ta.ema(fmacd_line, 5)
+fmacd_hist  = fmacd_line - fmacd_sig
+fmacd_cross = fmacd_hist > 0
+
+// — Mom Dad (Top Dog Trading) —
+td_mom        = ta.ema(close, 5) - ta.ema(close, 20)
+td_dad        = ta.ema(td_mom, 30)
+mom_over_dad  = td_mom > td_dad
+
+// — RSI 13 Signal Line Cross (linear regression) —
+RSI13      = ta.rsi(close, 13)
+_sl        = 21
+_x_        = ta.sma(bar_index, _sl)
+_y_        = ta.sma(RSI13, _sl)
+_sdx       = ta.stdev(bar_index, _sl)
+_sdy       = ta.stdev(RSI13, _sl)
+_slope     = _sdx != 0 ? ta.correlation(bar_index, RSI13, _sl) * (_sdy / _sdx) : 0.0
+_inter     = _y_ - _slope * _x_
+linreg_rsi = bar_index * _slope + _inter
+rsi_sig_cross = RSI13 > linreg_rsi
+
+// — RSI 13 e RSI 5 sopra/sotto 50 —
+rsi13_above50 = RSI13 > 50
+RSI5          = ta.rsi(close, 5)
+rsi5_above50  = RSI5 > 50
+
+// — Trend Candles (Heikin-Ashi simulato) —
+ha_close = ohlc4
+var float ha_open = na
+ha_open  := na(ha_open[1]) ? (open + close) / 2 : (ha_open[1] + ha_close[1]) / 2
+ha_bull  = ha_close - ha_open > 0 ? 1 : 0
+
+f_inside(i) =>
+    haopen <= math.max(ha_open[i], ha_close[i]) and
+     haopen >= math.min(ha_open[i], ha_close[i]) and
+     ha_close <= math.max(ha_open[i], ha_close[i]) and
+     ha_close >= math.min(ha_open[i], ha_close[i]) ? 1 : 0
+
+colorval     = f_inside(6) ? ha_bull[6] : f_inside(5) ? ha_bull[5] : f_inside(4) ? ha_bull[4] :
+               f_inside(3) ? ha_bull[3] : f_inside(2) ? ha_bull[2] : f_inside(1) ? ha_bull[1] : ha_bull
+trend_candle = colorval == 1
+
+// — Trend Bar MAs —
+MA1 = MA1_type == "SMA" ? ta.sma(close, MA1_len) : ta.ema(close, MA1_len)
+MA2 = MA2_type == "SMA" ? ta.sma(close, MA2_len) : ta.ema(close, MA2_len)
+MA3 = MA3_type == "SMA" ? ta.sma(close, MA3_len) : ta.ema(close, MA3_len)
+MA4 = MA4_type == "SMA" ? ta.sma(close, MA4_len) : ta.ema(close, MA4_len)
+
+MA1dir = MA1 > MA1[1]
+MA2dir = MA2 > MA2[1]
+MA3dir = MA3 > MA3[1]
+MA4dir = MA4 > MA4[1]
+
+ma_cross1 = MA1 > MA2
+ma_cross2 = MA3 > MA4
+
+// — Selettore Trend Meter (funzione con valori pre-calcolati come parametri) —
+f_tm(sel, v_macd, v_fmacd, v_momdad, v_rsisig, v_rsi13, v_rsi5, v_tc) =>
+    sel == "MACD Crossover - 12, 26, 9"             ? v_macd   :
+    sel == "MACD Crossover - Fast - 8, 21, 5"       ? v_fmacd  :
+    sel == "Mom Dad Cross (Top Dog Trading)"         ? v_momdad :
+    sel == "RSI Signal Line Cross - RSI 13, Sig 21" ? v_rsisig :
+    sel == "RSI 13: > or < 50"                      ? v_rsi13  :
+    sel == "RSI 5: > or < 50"                       ? v_rsi5   :
+    sel == "Trend Candles"                           ? v_tc     : false
+
+TM1 = f_tm(TM1_sel, macd_cross, fmacd_cross, mom_over_dad, rsi_sig_cross, rsi13_above50, rsi5_above50, trend_candle)
+TM2 = f_tm(TM2_sel, macd_cross, fmacd_cross, mom_over_dad, rsi_sig_cross, rsi13_above50, rsi5_above50, trend_candle)
+TM3 = f_tm(TM3_sel, macd_cross, fmacd_cross, mom_over_dad, rsi_sig_cross, rsi13_above50, rsi5_above50, trend_candle)
+
+// Tutti e 3 i Trend Meter concordi
+tm3_green = TM1 and TM2 and TM3
+tm3_red   = not TM1 and not TM2 and not TM3
+
+// Trend Bar 1
+tb1_result = TB1_sel == "MA Direction - Fast MA - TB1" ? MA1dir :
+             TB1_sel == "MA Direction - Slow MA - TB1" ? MA2dir : ma_cross1
+TB1_green  = tb1_result
+TB1_red    = not tb1_result
+
+// Trend Bar 2
+tb2_result = TB2_sel == "MA Direction - Fast MA - TB2" ? MA3dir :
+             TB2_sel == "MA Direction - Slow MA - TB2" ? MA4dir : ma_cross2
+TB2_green  = tb2_result
+TB2_red    = not tb2_result
+
+// "Tutte le aree verdi" = 3 TM + TB1 + TB2 tutti concordi
+trend_bull = tm3_green and TB1_green and TB2_green
+trend_bear = tm3_red   and TB1_red   and TB2_red
 
 // ══════════════════════════════════════════════════════════════════════════════
 //  CONDIZIONI SEGNALE
-//
-//  [TODO] Trend Meter: in attesa del codice sorgente.
-//  Quando disponibile, aggiungere:
-//      trend_bull = <tutte le aree Trend Meter verdi>
-//      trend_bear = <tutte le aree Trend Meter rosse>
-//  e includere nelle righe long_sig / short_sig.
 // ══════════════════════════════════════════════════════════════════════════════
 
-// 1. EMA in ordine (possono essere ravvicinate, l'importante è l'ordine)
+// 1. EMA in ordine (ravvicinate ok, l'importante è l'ordine)
 bull_ema = ema50 > ema100 and ema100 > ema150
 bear_ema = ema50 < ema100 and ema100 < ema150
 
-// 2. Prezzo tocca EMA50 (attraversa o rimbalza) e corpo chiude fuori
-//    LONG : low tocca/attraversa ema50, corpo intero (min open,close) sopra
-bull_touch = low <= ema50 and math.min(open, close) > ema50
-//    SHORT: high tocca/attraversa ema50, corpo intero (max open,close) sotto
+// 2. Prezzo tocca EMA50 (attraversa o rimbalza) + corpo intero chiude fuori
+bull_touch = low  <= ema50 and math.min(open, close) > ema50
 bear_touch = high >= ema50 and math.max(open, close) < ema50
 
-// 3. QQE MOD: barra verde/rossa
-// 4. Trend Meter: TODO (decommentare when trend_bull/trend_bear disponibili)
+// 3. QQE MOD: barra verde / rossa
+// 4. Trend Meter: tutte le aree verdi / rosse
 
-long_sig  = bull_ema and bull_touch and qqe_green // and trend_bull
-short_sig = bear_ema and bear_touch and qqe_red   // and trend_bear
+long_sig  = bull_ema and bull_touch and qqe_green and trend_bull
+short_sig = bear_ema and bear_touch and qqe_red   and trend_bear
 
 // ══════════════════════════════════════════════════════════════════════════════
 //  PLOT EMA
@@ -102,7 +233,7 @@ plot(show_emas ? ema150 : na, "EMA 150", color=color.white,  linewidth=2)
 
 // ══════════════════════════════════════════════════════════════════════════════
 //  PLOT SEGNALI
-//  (plotshape richiede size come const: una chiamata per dimensione)
+//  (plotshape richiede size come const string: una chiamata per dimensione)
 // ══════════════════════════════════════════════════════════════════════════════
 plotshape(long_sig  and dot_size_str == "Tiny",   "Long",  shape.circle, location.belowbar, dot_color_long,  size=size.tiny)
 plotshape(long_sig  and dot_size_str == "Small",  "Long",  shape.circle, location.belowbar, dot_color_long,  size=size.small)
@@ -118,11 +249,11 @@ plotshape(short_sig and dot_size_str == "Huge",   "Short", shape.circle, locatio
 
 // ══════════════════════════════════════════════════════════════════════════════
 //  ALERT
-//  Per attivare il suono: Alert → questo indicatore → Long/Short Signal
-//                         → Notifiche → spunta Suono → scegli suono
+//  Attivare suono: Alert → questo indicatore → Long/Short Signal
+//                 → Notifiche → Suono → scegli suono
 // ══════════════════════════════════════════════════════════════════════════════
-alertcondition(long_sig,  "Long Signal",  "LONG: EMA in ordine + tocco EMA50 + QQE verde")
-alertcondition(short_sig, "Short Signal", "SHORT: EMA in ordine + tocco EMA50 + QQE rosso")
+alertcondition(long_sig,  "Long Signal",  "LONG: EMA in ordine + tocco EMA50 + QQE verde + Trend Meter verde")
+alertcondition(short_sig, "Short Signal", "SHORT: EMA in ordine + tocco EMA50 + QQE rosso + Trend Meter rosso")
 
 if long_sig
     alert(alert_msg_long,  alert.freq_once_per_bar)
