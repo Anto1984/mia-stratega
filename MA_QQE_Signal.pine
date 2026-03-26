@@ -115,18 +115,15 @@ plot(show_mas ? ma50  : na, "MA 50",  color=color.orange, linewidth=2)
 plot(show_mas ? ma100 : na, "MA 100", color=color.yellow, linewidth=2)
 plot(show_mas ? ma150 : na, "MA 150", color=color.white,  linewidth=2)
 
-f_size(s) =>
-    switch s
-        "Tiny"   => size.tiny
-        "Small"  => size.small
-        "Normal" => size.normal
-        "Large"  => size.large
-        => size.huge
+_dot_size = dot_size_str == "Tiny"  ? size.tiny  :
+            dot_size_str == "Small" ? size.small :
+            dot_size_str == "Large" ? size.large :
+            dot_size_str == "Huge"  ? size.huge  : size.normal
 
 plotshape(long_sig,  "Long Signal",  shape.circle,
-     location.belowbar, dot_color_long,  size=f_size(dot_size_str))
+     location.belowbar, dot_color_long,  size=_dot_size)
 plotshape(short_sig, "Short Signal", shape.circle,
-     location.abovebar, dot_color_short, size=f_size(dot_size_str))
+     location.abovebar, dot_color_short, size=_dot_size)
 
 // ══════════════════════════════════════════════════════════════════════════════
 //  ALERTS
