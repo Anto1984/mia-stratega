@@ -1,279 +1,299 @@
 // This source code is subject to the terms of the Mozilla Public License 2.0
 // © mia-stratega
-// Trend Meter logic originally by Lij_MC (converted to Pine Script v5)
 
 //@version=5
-indicator("MA + QQE MOD Signal", overlay=true, max_labels_count=500)
+indicator("My Strategy Signal", overlay=true)
 
 // ══════════════════════════════════════════════════════════════════════════════
-//  EMA
+//  INPUTS — EMA
 // ══════════════════════════════════════════════════════════════════════════════
 grpMA      = "EMA"
-ema50_len  = input.int(50,  "Periodo EMA 50",  minval=1, group=grpMA)
-ema100_len = input.int(100, "Periodo EMA 100", minval=1, group=grpMA)
-ema150_len = input.int(150, "Periodo EMA 150", minval=1, group=grpMA)
+ema50_len  = input.int(50,  "EMA 50",  minval=1, group=grpMA)
+ema100_len = input.int(100, "EMA 100", minval=1, group=grpMA)
+ema150_len = input.int(150, "EMA 150", minval=1, group=grpMA)
 show_emas  = input.bool(true, "Mostra EMA", group=grpMA)
 
 // ══════════════════════════════════════════════════════════════════════════════
-//  QQE MOD
+//  INPUTS — QQE MOD
 // ══════════════════════════════════════════════════════════════════════════════
-grpQQE = "QQE MOD"
-ql1    = input.int(14,      "RSI Length Lento",  minval=1,   group=grpQQE)
-qs1    = input.int(5,       "RSI Smooth Lento",  minval=1,   group=grpQQE)
-qf1    = input.float(4.238, "QQE Factor Lento",  minval=0.1, group=grpQQE)
-ql2    = input.int(6,       "RSI Length Veloce", minval=1,   group=grpQQE)
-qs2    = input.int(5,       "RSI Smooth Veloce", minval=1,   group=grpQQE)
-qf2    = input.float(1.618, "QQE Factor Veloce", minval=0.1, group=grpQQE)
+grpQQE                = "QQE MOD"
+rsiLengthPrimary      = input.int(6,     "RSI Length (Primario)",     minval=1,   group=grpQQE)
+rsiSmoothingPrimary   = input.int(5,     "RSI Smooth (Primario)",     minval=1,   group=grpQQE)
+qqeFactorPrimary      = input.float(4.238, "QQE Factor (Primario)",   minval=0.1, group=grpQQE)
+bollingerLength       = input.int(50,    "Bollinger Length",           minval=1,   group=grpQQE)
+bollingerMultiplier   = input.float(0.35, "Bollinger Multiplier",     minval=0.01,group=grpQQE)
+rsiLengthSecondary    = input.int(3,     "RSI Length (Secondario)",   minval=1,   group=grpQQE)
+rsiSmoothingSecondary = input.int(3,     "RSI Smooth (Secondario)",   minval=1,   group=grpQQE)
+qqeFactorSecondary    = input.float(1.618, "QQE Factor (Secondario)", minval=0.1, group=grpQQE)
+thresholdSecondary    = input.float(0,   "Threshold Secondario",                  group=grpQQE)
 
 // ══════════════════════════════════════════════════════════════════════════════
-//  TREND METER — 3 Trend Meters
-// ══════════════════════════════════════════════════════════════════════════════
-grpTM   = "Trend Meter"
-TM1_sel = input.string("MACD Crossover - Fast - 8, 21, 5", "Trend Meter 1",
-     options=["MACD Crossover - 12, 26, 9", "MACD Crossover - Fast - 8, 21, 5",
-              "Mom Dad Cross (Top Dog Trading)", "RSI Signal Line Cross - RSI 13, Sig 21",
-              "RSI 13: > or < 50", "RSI 5: > or < 50", "Trend Candles", "N/A"], group=grpTM)
-TM2_sel = input.string("RSI 13: > or < 50", "Trend Meter 2",
-     options=["MACD Crossover - 12, 26, 9", "MACD Crossover - Fast - 8, 21, 5",
-              "Mom Dad Cross (Top Dog Trading)", "RSI Signal Line Cross - RSI 13, Sig 21",
-              "RSI 13: > or < 50", "RSI 5: > or < 50", "Trend Candles", "N/A"], group=grpTM)
-TM3_sel = input.string("RSI 5: > or < 50", "Trend Meter 3",
-     options=["MACD Crossover - 12, 26, 9", "MACD Crossover - Fast - 8, 21, 5",
-              "Mom Dad Cross (Top Dog Trading)", "RSI Signal Line Cross - RSI 13, Sig 21",
-              "RSI 13: > or < 50", "RSI 5: > or < 50", "Trend Candles", "N/A"], group=grpTM)
-
-// ══════════════════════════════════════════════════════════════════════════════
-//  TREND METER — Trend Bar 1
-// ══════════════════════════════════════════════════════════════════════════════
-grpTB1    = "Trend Bar 1"
-TB1_sel   = input.string("MA Crossover", "Tipo",
-     options=["MA Crossover", "MA Direction - Fast MA - TB1", "MA Direction - Slow MA - TB1"], group=grpTB1)
-MA1_len   = input.int(5,  "Fast MA", minval=1, group=grpTB1, inline="tb1f")
-MA1_type  = input.string("EMA", "",  options=["EMA", "SMA"],  group=grpTB1, inline="tb1f")
-MA2_len   = input.int(11, "Slow MA", minval=1, group=grpTB1, inline="tb1s")
-MA2_type  = input.string("EMA", "",  options=["EMA", "SMA"],  group=grpTB1, inline="tb1s")
-
-// ══════════════════════════════════════════════════════════════════════════════
-//  TREND METER — Trend Bar 2
-// ══════════════════════════════════════════════════════════════════════════════
-grpTB2    = "Trend Bar 2"
-TB2_sel   = input.string("MA Crossover", "Tipo",
-     options=["MA Crossover", "MA Direction - Fast MA - TB2", "MA Direction - Slow MA - TB2"], group=grpTB2)
-MA3_len   = input.int(13, "Fast MA", minval=1, group=grpTB2, inline="tb2f")
-MA3_type  = input.string("EMA", "",  options=["EMA", "SMA"],  group=grpTB2, inline="tb2f")
-MA4_len   = input.int(36, "Slow MA", minval=1, group=grpTB2, inline="tb2s")
-MA4_type  = input.string("SMA", "",  options=["EMA", "SMA"],  group=grpTB2, inline="tb2s")
-
-// ══════════════════════════════════════════════════════════════════════════════
-//  SEGNALE
+//  INPUTS — SEGNALE
 // ══════════════════════════════════════════════════════════════════════════════
 grpSig          = "Segnale"
-dot_color_long  = input.color(color.yellow, "Colore Long",  group=grpSig)
-dot_color_short = input.color(color.yellow, "Colore Short", group=grpSig)
-dot_size_str    = input.string("Normal", "Dimensione",
-     options=["Tiny","Small","Normal","Large","Huge"], group=grpSig)
-alert_msg_long  = input.string("LONG Signal",  "Messaggio Alert Long",  group=grpSig)
-alert_msg_short = input.string("SHORT Signal", "Messaggio Alert Short", group=grpSig)
+mem             = input.int(3,  "Touch Memory (barre)", minval=1, group=grpSig)
+alert_msg_long  = input.string("LONG Signal",  "Alert Long",  group=grpSig)
+alert_msg_short = input.string("SHORT Signal", "Alert Short", group=grpSig)
 
 // ══════════════════════════════════════════════════════════════════════════════
-//  CALCOLO EMA (50 / 100 / 150)
+//  INPUTS — TABELLA MAJOR PAIRS
+//  N.B.: 7 pair × 5 TF = 35 request.security() (limite Pine Script: 40)
+//        Con 6 TF si arriverebbe a 42, superando il limite → usare 5 TF.
 // ══════════════════════════════════════════════════════════════════════════════
-ema50  = ta.ema(close, ema50_len)
-ema100 = ta.ema(close, ema100_len)
-ema150 = ta.ema(close, ema150_len)
-
-// ══════════════════════════════════════════════════════════════════════════════
-//  CALCOLO QQE MOD
-// ══════════════════════════════════════════════════════════════════════════════
-f_qqe(len, sm, fac) =>
-    rsi   = ta.rsi(close, len)
-    rma   = ta.ema(rsi, sm)
-    atr   = math.abs(rma[1] - rma)
-    matr  = ta.ema(atr, len * 4 - 1)
-    delta = ta.ema(matr, len * 4 - 1) * fac
-    var float lb = 0.0
-    var float sb = 0.0
-    var int   tr = 1
-    lb := rma > nz(lb[1]) ? math.max(nz(lb[1]), rma - delta) : rma - delta
-    sb := rma < nz(sb[1]) ? math.min(nz(sb[1]), rma + delta) : rma + delta
-    tr := ta.crossover(rma, sb[1]) ? 1 : ta.crossunder(rma, lb[1]) ? -1 : nz(tr[1], 1)
-    rma
-
-rsi_slow  = f_qqe(ql1, qs1, qf1)
-rsi_fast  = f_qqe(ql2, qs2, qf2)
-qqe_green = rsi_fast > rsi_slow
-qqe_red   = rsi_fast < rsi_slow
-
-// ══════════════════════════════════════════════════════════════════════════════
-//  CALCOLO TREND METER (logica originale Lij_MC, convertita in v5)
-// ══════════════════════════════════════════════════════════════════════════════
-
-// — MACD standard (12,26,9) —
-macd_line  = ta.ema(close, 12) - ta.ema(close, 26)
-macd_sig   = ta.ema(macd_line, 9)
-macd_hist  = macd_line - macd_sig
-macd_cross = macd_hist > 0
-
-// — MACD veloce (8,21,5) —
-fmacd_line  = ta.ema(close, 8) - ta.ema(close, 21)
-fmacd_sig   = ta.ema(fmacd_line, 5)
-fmacd_hist  = fmacd_line - fmacd_sig
-fmacd_cross = fmacd_hist > 0
-
-// — Mom Dad (Top Dog Trading) —
-td_mom        = ta.ema(close, 5) - ta.ema(close, 20)
-td_dad        = ta.ema(td_mom, 30)
-mom_over_dad  = td_mom > td_dad
-
-// — RSI 13 Signal Line Cross (linear regression) —
-RSI13      = ta.rsi(close, 13)
-_sl        = 21
-_x_        = ta.sma(bar_index, _sl)
-_y_        = ta.sma(RSI13, _sl)
-_sdx       = ta.stdev(bar_index, _sl)
-_sdy       = ta.stdev(RSI13, _sl)
-_slope     = _sdx != 0 ? ta.correlation(bar_index, RSI13, _sl) * (_sdy / _sdx) : 0.0
-_inter     = _y_ - _slope * _x_
-linreg_rsi = bar_index * _slope + _inter
-rsi_sig_cross = RSI13 > linreg_rsi
-
-// — RSI 13 e RSI 5 sopra/sotto 50 —
-rsi13_above50 = RSI13 > 50
-RSI5          = ta.rsi(close, 5)
-rsi5_above50  = RSI5 > 50
-
-// — Trend Candles (Heikin-Ashi simulato) —
-ha_close = ohlc4
-var float ha_open = na
-ha_open  := na(ha_open[1]) ? (open + close) / 2 : (ha_open[1] + ha_close[1]) / 2
-ha_bull  = ha_close - ha_open > 0 ? 1 : 0
-
-f_inside(i) =>
-    ha_open <= math.max(ha_open[i], ha_close[i]) and
-     ha_open >= math.min(ha_open[i], ha_close[i]) and
-     ha_close <= math.max(ha_open[i], ha_close[i]) and
-     ha_close >= math.min(ha_open[i], ha_close[i]) ? 1 : 0
-
-colorval     = f_inside(6) ? ha_bull[6] : f_inside(5) ? ha_bull[5] : f_inside(4) ? ha_bull[4] :
-               f_inside(3) ? ha_bull[3] : f_inside(2) ? ha_bull[2] : f_inside(1) ? ha_bull[1] : ha_bull
-trend_candle = colorval == 1
-
-// — Trend Bar MAs —
-MA1 = MA1_type == "SMA" ? ta.sma(close, MA1_len) : ta.ema(close, MA1_len)
-MA2 = MA2_type == "SMA" ? ta.sma(close, MA2_len) : ta.ema(close, MA2_len)
-MA3 = MA3_type == "SMA" ? ta.sma(close, MA3_len) : ta.ema(close, MA3_len)
-MA4 = MA4_type == "SMA" ? ta.sma(close, MA4_len) : ta.ema(close, MA4_len)
-
-MA1dir = MA1 > MA1[1]
-MA2dir = MA2 > MA2[1]
-MA3dir = MA3 > MA3[1]
-MA4dir = MA4 > MA4[1]
-
-ma_cross1 = MA1 > MA2
-ma_cross2 = MA3 > MA4
-
-// — Selettore Trend Meter (switch expression per ogni TM) —
-TM1 = switch TM1_sel
-    "MACD Crossover - 12, 26, 9"             => macd_cross
-    "MACD Crossover - Fast - 8, 21, 5"       => fmacd_cross
-    "Mom Dad Cross (Top Dog Trading)"         => mom_over_dad
-    "RSI Signal Line Cross - RSI 13, Sig 21" => rsi_sig_cross
-    "RSI 13: > or < 50"                      => rsi13_above50
-    "RSI 5: > or < 50"                       => rsi5_above50
-    "Trend Candles"                           => trend_candle
-    =>                                           false
-
-TM2 = switch TM2_sel
-    "MACD Crossover - 12, 26, 9"             => macd_cross
-    "MACD Crossover - Fast - 8, 21, 5"       => fmacd_cross
-    "Mom Dad Cross (Top Dog Trading)"         => mom_over_dad
-    "RSI Signal Line Cross - RSI 13, Sig 21" => rsi_sig_cross
-    "RSI 13: > or < 50"                      => rsi13_above50
-    "RSI 5: > or < 50"                       => rsi5_above50
-    "Trend Candles"                           => trend_candle
-    =>                                           false
-
-TM3 = switch TM3_sel
-    "MACD Crossover - 12, 26, 9"             => macd_cross
-    "MACD Crossover - Fast - 8, 21, 5"       => fmacd_cross
-    "Mom Dad Cross (Top Dog Trading)"         => mom_over_dad
-    "RSI Signal Line Cross - RSI 13, Sig 21" => rsi_sig_cross
-    "RSI 13: > or < 50"                      => rsi13_above50
-    "RSI 5: > or < 50"                       => rsi5_above50
-    "Trend Candles"                           => trend_candle
-    =>                                           false
-
-// Tutti e 3 i Trend Meter concordi
-tm3_green = TM1 and TM2 and TM3
-tm3_red   = not TM1 and not TM2 and not TM3
-
-// Trend Bar 1
-tb1_result = switch TB1_sel
-    "MA Direction - Fast MA - TB1" => MA1dir
-    "MA Direction - Slow MA - TB1" => MA2dir
-    =>                                ma_cross1
-TB1_green  = tb1_result
-TB1_red    = not tb1_result
-
-// Trend Bar 2
-tb2_result = switch TB2_sel
-    "MA Direction - Fast MA - TB2" => MA3dir
-    "MA Direction - Slow MA - TB2" => MA4dir
-    =>                                ma_cross2
-TB2_green  = tb2_result
-TB2_red    = not tb2_result
-
-// "Tutte le aree verdi" = 3 TM + TB1 + TB2 tutti concordi
-trend_bull = tm3_green and TB1_green and TB2_green
-trend_bear = tm3_red   and TB1_red   and TB2_red
-
-// ══════════════════════════════════════════════════════════════════════════════
-//  CONDIZIONI SEGNALE
-// ══════════════════════════════════════════════════════════════════════════════
-
-// 1. EMA in ordine (ravvicinate ok, l'importante è l'ordine)
-bull_ema = ema50 > ema100 and ema100 > ema150
-bear_ema = ema50 < ema100 and ema100 < ema150
-
-// 2. Prezzo tocca EMA50 (attraversa o rimbalza) + corpo intero chiude fuori
-//    La candela PRECEDENTE deve già chiudere fuori dall'EMA50:
-//    questo evita segnali sul "primo incrocio" e cattura solo i veri rimbalzi/dip.
-bull_touch = low  <= ema50 and math.min(open, close) > ema50 and close[1] > ema50[1]
-bear_touch = high >= ema50 and math.max(open, close) < ema50 and close[1] < ema50[1]
-
-// 3. QQE MOD: barra verde / rossa
-// 4. Trend Meter: tutte le aree verdi / rosse
-
-long_sig  = bull_ema and bull_touch and qqe_green and trend_bull
-short_sig = bear_ema and bear_touch and qqe_red   and trend_bear
+grpTbl  = "Tabella Major Pairs"
+tf1     = input.timeframe("1",   "TF 1", group=grpTbl)
+tf2     = input.timeframe("5",   "TF 2", group=grpTbl)
+tf3     = input.timeframe("15",  "TF 3", group=grpTbl)
+tf4     = input.timeframe("60",  "TF 4", group=grpTbl)
+tf5     = input.timeframe("240", "TF 5", group=grpTbl)
+tbl_pos = input.string("Bottom Right", "Posizione Tabella",
+     options=["Top Left","Top Right","Bottom Left","Bottom Right"], group=grpTbl)
 
 // ══════════════════════════════════════════════════════════════════════════════
 //  PLOT EMA
 // ══════════════════════════════════════════════════════════════════════════════
-plot(show_emas ? ema50  : na, "EMA 50",  color=color.orange, linewidth=2)
-plot(show_emas ? ema100 : na, "EMA 100", color=color.yellow, linewidth=2)
-plot(show_emas ? ema150 : na, "EMA 150", color=color.white,  linewidth=2)
+plot(show_emas ? ta.ema(close, ema50_len)  : na, "EMA 50",  color=color.orange, linewidth=2)
+plot(show_emas ? ta.ema(close, ema100_len) : na, "EMA 100", color=color.yellow, linewidth=2)
+plot(show_emas ? ta.ema(close, ema150_len) : na, "EMA 150", color=color.white,  linewidth=2)
 
 // ══════════════════════════════════════════════════════════════════════════════
-//  PLOT SEGNALI
-//  (plotshape richiede size come const string: una chiamata per dimensione)
+//  FUNZIONI SEGNALE  ← non modificare
 // ══════════════════════════════════════════════════════════════════════════════
-plotshape(long_sig  and dot_size_str == "Tiny",   "Long",  shape.circle, location.belowbar, dot_color_long,  size=size.tiny)
-plotshape(long_sig  and dot_size_str == "Small",  "Long",  shape.circle, location.belowbar, dot_color_long,  size=size.small)
-plotshape(long_sig  and dot_size_str == "Normal", "Long",  shape.circle, location.belowbar, dot_color_long,  size=size.normal)
-plotshape(long_sig  and dot_size_str == "Large",  "Long",  shape.circle, location.belowbar, dot_color_long,  size=size.large)
-plotshape(long_sig  and dot_size_str == "Huge",   "Long",  shape.circle, location.belowbar, dot_color_long,  size=size.huge)
+calculateQQE(rsiLen, smoothing, qqeFactor, src) =>
+    wildersLength = rsiLen * 2 - 1
+    rsi = ta.rsi(src, rsiLen)
+    smoothedRsi = ta.ema(rsi, smoothing)
+    atrRsi = math.abs(smoothedRsi[1] - smoothedRsi)
+    smoothedAtrRsi = ta.ema(atrRsi, wildersLength)
+    dynamicAtrRsi = smoothedAtrRsi * qqeFactor
+    longBand  = 0.0
+    shortBand = 0.0
+    trendDir  = 0
+    longBand  := smoothedRsi[1] > longBand[1]  and smoothedRsi > longBand[1]  ? math.max(longBand[1],  smoothedRsi - dynamicAtrRsi) : smoothedRsi - dynamicAtrRsi
+    shortBand := smoothedRsi[1] < shortBand[1] and smoothedRsi < shortBand[1] ? math.min(shortBand[1], smoothedRsi + dynamicAtrRsi) : smoothedRsi + dynamicAtrRsi
+    if ta.cross(smoothedRsi, shortBand[1])
+        trendDir := 1
+    else if ta.cross(longBand[1], smoothedRsi)
+        trendDir := -1
+    else
+        trendDir := trendDir[1]
+    smoothedRsi
 
-plotshape(short_sig and dot_size_str == "Tiny",   "Short", shape.circle, location.abovebar, dot_color_short, size=size.tiny)
-plotshape(short_sig and dot_size_str == "Small",  "Short", shape.circle, location.abovebar, dot_color_short, size=size.small)
-plotshape(short_sig and dot_size_str == "Normal", "Short", shape.circle, location.abovebar, dot_color_short, size=size.normal)
-plotshape(short_sig and dot_size_str == "Large",  "Short", shape.circle, location.abovebar, dot_color_short, size=size.large)
-plotshape(short_sig and dot_size_str == "Huge",   "Short", shape.circle, location.abovebar, dot_color_short, size=size.huge)
+calcAll() =>
+    e50  = ta.ema(close, ema50_len)
+    e100 = ta.ema(close, ema100_len)
+    e150 = ta.ema(close, ema150_len)
+    emaL = e50 > e100 and e100 > e150
+    emaS = e50 < e100 and e100 < e150
+    tL = low <= e50 and open > e50 and close > e50 and emaL
+    tS = high >= e50 and open < e50 and close < e50 and emaS
+    bsL = ta.barssince(tL)
+    bsS = ta.barssince(tS)
+    pRSI = calculateQQE(rsiLengthPrimary,   rsiSmoothingPrimary,   qqeFactorPrimary,   close)
+    sRSI = calculateQQE(rsiLengthSecondary, rsiSmoothingSecondary, qqeFactorSecondary, close)
+    bbBasis = ta.sma(pRSI - 50, bollingerLength)
+    bbDev   = bollingerMultiplier * ta.stdev(pRSI - 50, bollingerLength)
+    bbU     = bbBasis + bbDev
+    bbL2    = bbBasis - bbDev
+    qqeL = (sRSI - 50) >  thresholdSecondary and (pRSI - 50) >  bbU
+    qqeS = (sRSI - 50) < -thresholdSecondary and (pRSI - 50) <  bbL2
+    fMLine = ta.ema(close, 8) - ta.ema(close, 21)
+    fSLine = ta.ema(fMLine, 5)
+    tm1 = (fMLine - fSLine) > 0
+    tm2 = ta.rsi(close, 13) > 50
+    tm3 = ta.rsi(close, 5)  > 50
+    t1  = ta.ema(close, 5)  > ta.ema(close, 11)
+    t2  = ta.ema(close, 13) > ta.sma(close, 36)
+    trendL = tm1 and tm2 and tm3 and t1 and t2
+    trendS = not tm1 and not tm2 and not tm3 and not t1 and not t2
+    [bsL, bsS, close, e50, emaL, emaS, qqeL, qqeS, trendL, trendS]
+
+evalSignal(bsL, bsS, c, e50, emaL, emaS, qqeL, qqeS, trendL, trendS, mem) =>
+    tmL = bsL <= mem and c > e50
+    tmS = bsS <= mem and c < e50
+    sigL = emaL and tmL and qqeL and trendL
+    sigS = emaS and tmS and qqeS and trendS
+    sigL ? 1 : sigS ? -1 : 0
 
 // ══════════════════════════════════════════════════════════════════════════════
-//  ALERT
-//  Attivare suono: Alert → questo indicatore → Long/Short Signal
-//                 → Notifiche → Suono → scegli suono
+//  SEGNALE CHART CORRENTE  (usato per gli alert)
+// ══════════════════════════════════════════════════════════════════════════════
+[bsL0, bsS0, c0, e50_0, emaL0, emaS0, qqeL0, qqeS0, trendL0, trendS0] = calcAll()
+curSig    = evalSignal(bsL0, bsS0, c0, e50_0, emaL0, emaS0, qqeL0, qqeS0, trendL0, trendS0, mem)
+long_sig  = curSig == 1
+short_sig = curSig == -1
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  REQUEST.SECURITY — 7 pair × 5 TF = 35 chiamate (< limite 40)
+// ══════════════════════════════════════════════════════════════════════════════
+f_get(sym, tf) =>
+    [a, b, c, d, e, f, g, h, ii, j] = request.security(sym, tf, calcAll())
+    evalSignal(a, b, c, d, e, f, g, h, ii, j, mem)
+
+// EURUSD
+eu_t1 = f_get("EURUSD", tf1)
+eu_t2 = f_get("EURUSD", tf2)
+eu_t3 = f_get("EURUSD", tf3)
+eu_t4 = f_get("EURUSD", tf4)
+eu_t5 = f_get("EURUSD", tf5)
+
+// GBPUSD
+gu_t1 = f_get("GBPUSD", tf1)
+gu_t2 = f_get("GBPUSD", tf2)
+gu_t3 = f_get("GBPUSD", tf3)
+gu_t4 = f_get("GBPUSD", tf4)
+gu_t5 = f_get("GBPUSD", tf5)
+
+// USDJPY
+uj_t1 = f_get("USDJPY", tf1)
+uj_t2 = f_get("USDJPY", tf2)
+uj_t3 = f_get("USDJPY", tf3)
+uj_t4 = f_get("USDJPY", tf4)
+uj_t5 = f_get("USDJPY", tf5)
+
+// USDCHF
+uc_t1 = f_get("USDCHF", tf1)
+uc_t2 = f_get("USDCHF", tf2)
+uc_t3 = f_get("USDCHF", tf3)
+uc_t4 = f_get("USDCHF", tf4)
+uc_t5 = f_get("USDCHF", tf5)
+
+// USDCAD
+ud_t1 = f_get("USDCAD", tf1)
+ud_t2 = f_get("USDCAD", tf2)
+ud_t3 = f_get("USDCAD", tf3)
+ud_t4 = f_get("USDCAD", tf4)
+ud_t5 = f_get("USDCAD", tf5)
+
+// AUDUSD
+au_t1 = f_get("AUDUSD", tf1)
+au_t2 = f_get("AUDUSD", tf2)
+au_t3 = f_get("AUDUSD", tf3)
+au_t4 = f_get("AUDUSD", tf4)
+au_t5 = f_get("AUDUSD", tf5)
+
+// NZDUSD
+nz_t1 = f_get("NZDUSD", tf1)
+nz_t2 = f_get("NZDUSD", tf2)
+nz_t3 = f_get("NZDUSD", tf3)
+nz_t4 = f_get("NZDUSD", tf4)
+nz_t5 = f_get("NZDUSD", tf5)
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  TABELLA
+// ══════════════════════════════════════════════════════════════════════════════
+C_HEAD  = color.new(color.gray,  20)
+C_BG    = color.new(color.gray,  80)
+C_LONG  = color.new(color.green, 20)
+C_SHORT = color.new(color.red,   20)
+C_TXT   = color.white
+C_DOT   = color.yellow
+
+f_tf_label(tf) =>
+    switch tf
+        "1"   => "M1"
+        "3"   => "M3"
+        "5"   => "M5"
+        "10"  => "M10"
+        "15"  => "M15"
+        "30"  => "M30"
+        "45"  => "M45"
+        "60"  => "H1"
+        "120" => "H2"
+        "180" => "H3"
+        "240" => "H4"
+        "D"   => "D1"
+        "W"   => "W1"
+        "M"   => "MN"
+        =>       tf
+
+tbl_position = switch tbl_pos
+    "Top Left"     => position.top_left
+    "Top Right"    => position.top_right
+    "Bottom Left"  => position.bottom_left
+    =>               position.bottom_right
+
+var table tbl = na
+
+if barstate.islast
+    tbl := table.new(tbl_position, 6, 8,
+         border_width=1,
+         border_color=color.new(color.gray, 50),
+         frame_width=1,
+         frame_color=color.new(color.gray, 30))
+
+    // ── Intestazione colonne ──────────────────────────────────────────────────
+    table.cell(tbl, 0, 0, "Pair",
+         bgcolor=C_HEAD, text_color=C_TXT, text_size=size.small, text_halign=text.align_center)
+    table.cell(tbl, 1, 0, f_tf_label(tf1),
+         bgcolor=C_HEAD, text_color=C_TXT, text_size=size.small, text_halign=text.align_center)
+    table.cell(tbl, 2, 0, f_tf_label(tf2),
+         bgcolor=C_HEAD, text_color=C_TXT, text_size=size.small, text_halign=text.align_center)
+    table.cell(tbl, 3, 0, f_tf_label(tf3),
+         bgcolor=C_HEAD, text_color=C_TXT, text_size=size.small, text_halign=text.align_center)
+    table.cell(tbl, 4, 0, f_tf_label(tf4),
+         bgcolor=C_HEAD, text_color=C_TXT, text_size=size.small, text_halign=text.align_center)
+    table.cell(tbl, 5, 0, f_tf_label(tf5),
+         bgcolor=C_HEAD, text_color=C_TXT, text_size=size.small, text_halign=text.align_center)
+
+    // ── Riga 1: EURUSD ────────────────────────────────────────────────────────
+    table.cell(tbl, 0, 1, "EURUSD", bgcolor=C_HEAD, text_color=C_TXT, text_size=size.small)
+    table.cell(tbl, 1, 1, eu_t1 != 0 ? "●" : "", bgcolor=eu_t1 == 1 ? C_LONG : eu_t1 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+    table.cell(tbl, 2, 1, eu_t2 != 0 ? "●" : "", bgcolor=eu_t2 == 1 ? C_LONG : eu_t2 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+    table.cell(tbl, 3, 1, eu_t3 != 0 ? "●" : "", bgcolor=eu_t3 == 1 ? C_LONG : eu_t3 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+    table.cell(tbl, 4, 1, eu_t4 != 0 ? "●" : "", bgcolor=eu_t4 == 1 ? C_LONG : eu_t4 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+    table.cell(tbl, 5, 1, eu_t5 != 0 ? "●" : "", bgcolor=eu_t5 == 1 ? C_LONG : eu_t5 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+
+    // ── Riga 2: GBPUSD ────────────────────────────────────────────────────────
+    table.cell(tbl, 0, 2, "GBPUSD", bgcolor=C_HEAD, text_color=C_TXT, text_size=size.small)
+    table.cell(tbl, 1, 2, gu_t1 != 0 ? "●" : "", bgcolor=gu_t1 == 1 ? C_LONG : gu_t1 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+    table.cell(tbl, 2, 2, gu_t2 != 0 ? "●" : "", bgcolor=gu_t2 == 1 ? C_LONG : gu_t2 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+    table.cell(tbl, 3, 2, gu_t3 != 0 ? "●" : "", bgcolor=gu_t3 == 1 ? C_LONG : gu_t3 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+    table.cell(tbl, 4, 2, gu_t4 != 0 ? "●" : "", bgcolor=gu_t4 == 1 ? C_LONG : gu_t4 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+    table.cell(tbl, 5, 2, gu_t5 != 0 ? "●" : "", bgcolor=gu_t5 == 1 ? C_LONG : gu_t5 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+
+    // ── Riga 3: USDJPY ────────────────────────────────────────────────────────
+    table.cell(tbl, 0, 3, "USDJPY", bgcolor=C_HEAD, text_color=C_TXT, text_size=size.small)
+    table.cell(tbl, 1, 3, uj_t1 != 0 ? "●" : "", bgcolor=uj_t1 == 1 ? C_LONG : uj_t1 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+    table.cell(tbl, 2, 3, uj_t2 != 0 ? "●" : "", bgcolor=uj_t2 == 1 ? C_LONG : uj_t2 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+    table.cell(tbl, 3, 3, uj_t3 != 0 ? "●" : "", bgcolor=uj_t3 == 1 ? C_LONG : uj_t3 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+    table.cell(tbl, 4, 3, uj_t4 != 0 ? "●" : "", bgcolor=uj_t4 == 1 ? C_LONG : uj_t4 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+    table.cell(tbl, 5, 3, uj_t5 != 0 ? "●" : "", bgcolor=uj_t5 == 1 ? C_LONG : uj_t5 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+
+    // ── Riga 4: USDCHF ────────────────────────────────────────────────────────
+    table.cell(tbl, 0, 4, "USDCHF", bgcolor=C_HEAD, text_color=C_TXT, text_size=size.small)
+    table.cell(tbl, 1, 4, uc_t1 != 0 ? "●" : "", bgcolor=uc_t1 == 1 ? C_LONG : uc_t1 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+    table.cell(tbl, 2, 4, uc_t2 != 0 ? "●" : "", bgcolor=uc_t2 == 1 ? C_LONG : uc_t2 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+    table.cell(tbl, 3, 4, uc_t3 != 0 ? "●" : "", bgcolor=uc_t3 == 1 ? C_LONG : uc_t3 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+    table.cell(tbl, 4, 4, uc_t4 != 0 ? "●" : "", bgcolor=uc_t4 == 1 ? C_LONG : uc_t4 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+    table.cell(tbl, 5, 4, uc_t5 != 0 ? "●" : "", bgcolor=uc_t5 == 1 ? C_LONG : uc_t5 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+
+    // ── Riga 5: USDCAD ────────────────────────────────────────────────────────
+    table.cell(tbl, 0, 5, "USDCAD", bgcolor=C_HEAD, text_color=C_TXT, text_size=size.small)
+    table.cell(tbl, 1, 5, ud_t1 != 0 ? "●" : "", bgcolor=ud_t1 == 1 ? C_LONG : ud_t1 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+    table.cell(tbl, 2, 5, ud_t2 != 0 ? "●" : "", bgcolor=ud_t2 == 1 ? C_LONG : ud_t2 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+    table.cell(tbl, 3, 5, ud_t3 != 0 ? "●" : "", bgcolor=ud_t3 == 1 ? C_LONG : ud_t3 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+    table.cell(tbl, 4, 5, ud_t4 != 0 ? "●" : "", bgcolor=ud_t4 == 1 ? C_LONG : ud_t4 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+    table.cell(tbl, 5, 5, ud_t5 != 0 ? "●" : "", bgcolor=ud_t5 == 1 ? C_LONG : ud_t5 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+
+    // ── Riga 6: AUDUSD ────────────────────────────────────────────────────────
+    table.cell(tbl, 0, 6, "AUDUSD", bgcolor=C_HEAD, text_color=C_TXT, text_size=size.small)
+    table.cell(tbl, 1, 6, au_t1 != 0 ? "●" : "", bgcolor=au_t1 == 1 ? C_LONG : au_t1 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+    table.cell(tbl, 2, 6, au_t2 != 0 ? "●" : "", bgcolor=au_t2 == 1 ? C_LONG : au_t2 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+    table.cell(tbl, 3, 6, au_t3 != 0 ? "●" : "", bgcolor=au_t3 == 1 ? C_LONG : au_t3 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+    table.cell(tbl, 4, 6, au_t4 != 0 ? "●" : "", bgcolor=au_t4 == 1 ? C_LONG : au_t4 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+    table.cell(tbl, 5, 6, au_t5 != 0 ? "●" : "", bgcolor=au_t5 == 1 ? C_LONG : au_t5 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+
+    // ── Riga 7: NZDUSD ────────────────────────────────────────────────────────
+    table.cell(tbl, 0, 7, "NZDUSD", bgcolor=C_HEAD, text_color=C_TXT, text_size=size.small)
+    table.cell(tbl, 1, 7, nz_t1 != 0 ? "●" : "", bgcolor=nz_t1 == 1 ? C_LONG : nz_t1 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+    table.cell(tbl, 2, 7, nz_t2 != 0 ? "●" : "", bgcolor=nz_t2 == 1 ? C_LONG : nz_t2 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+    table.cell(tbl, 3, 7, nz_t3 != 0 ? "●" : "", bgcolor=nz_t3 == 1 ? C_LONG : nz_t3 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+    table.cell(tbl, 4, 7, nz_t4 != 0 ? "●" : "", bgcolor=nz_t4 == 1 ? C_LONG : nz_t4 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+    table.cell(tbl, 5, 7, nz_t5 != 0 ? "●" : "", bgcolor=nz_t5 == 1 ? C_LONG : nz_t5 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  ALERT — chart corrente
 // ══════════════════════════════════════════════════════════════════════════════
 alertcondition(long_sig,  "Long Signal",  "LONG: EMA in ordine + tocco EMA50 + QQE verde + Trend Meter verde")
 alertcondition(short_sig, "Short Signal", "SHORT: EMA in ordine + tocco EMA50 + QQE rosso + Trend Meter rosso")
