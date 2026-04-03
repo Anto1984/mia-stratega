@@ -4,54 +4,48 @@
 //@version=5
 indicator("My Strategy Signal", overlay=true)
 
-// ══════════════════════════════════════════════════════════════════════════════
-//  INPUTS — EMA
-// ══════════════════════════════════════════════════════════════════════════════
-grpMA      = "EMA"
-ema50_len  = input.int(50,  "EMA 50",  minval=1, group=grpMA)
-ema100_len = input.int(100, "EMA 100", minval=1, group=grpMA)
-ema150_len = input.int(150, "EMA 150", minval=1, group=grpMA)
+// ═══════════════════════════════════════════════════════════
+// IMPOSTAZIONI EMA
+// ═══════════════════════════════════════════════════════════
+ema50_len  = input.int(50,  title="EMA 50 Length",  group="EMA Settings")
+ema100_len = input.int(100, title="EMA 100 Length", group="EMA Settings")
+ema150_len = input.int(150, title="EMA 150 Length", group="EMA Settings")
 
-// ══════════════════════════════════════════════════════════════════════════════
-//  INPUTS — QQE MOD
-// ══════════════════════════════════════════════════════════════════════════════
-grpQQE                = "QQE MOD"
-rsiLengthPrimary      = input.int(6,     "RSI Length (Primario)",     minval=1,   group=grpQQE)
-rsiSmoothingPrimary   = input.int(5,     "RSI Smooth (Primario)",     minval=1,   group=grpQQE)
-qqeFactorPrimary      = input.float(4.238, "QQE Factor (Primario)",   minval=0.1, group=grpQQE)
-bollingerLength       = input.int(50,    "Bollinger Length",           minval=1,   group=grpQQE)
-bollingerMultiplier   = input.float(0.35, "Bollinger Multiplier",     minval=0.01,group=grpQQE)
-rsiLengthSecondary    = input.int(3,     "RSI Length (Secondario)",   minval=1,   group=grpQQE)
-rsiSmoothingSecondary = input.int(3,     "RSI Smooth (Secondario)",   minval=1,   group=grpQQE)
-qqeFactorSecondary    = input.float(1.618, "QQE Factor (Secondario)", minval=0.1, group=grpQQE)
-thresholdSecondary    = input.float(0,   "Threshold Secondario",                  group=grpQQE)
+// ═══════════════════════════════════════════════════════════
+// IMPOSTAZIONI SEGNALE
+// ═══════════════════════════════════════════════════════════
+dotColor    = input.color(color.yellow, title="Colore Pallino",                group="Signal Settings")
+touchMemory = input.int(10,             title="Memoria tocco EMA50 (candele)", group="Signal Settings", minval=1, maxval=100)
 
-// ══════════════════════════════════════════════════════════════════════════════
-//  INPUTS — SEGNALE
-// ══════════════════════════════════════════════════════════════════════════════
-grpSig          = "Segnale"
-mem             = input.int(3,  "Touch Memory (barre)", minval=1, group=grpSig)
-alert_msg_long  = input.string("LONG Signal",  "Alert Long",  group=grpSig)
-alert_msg_short = input.string("SHORT Signal", "Alert Short", group=grpSig)
+// ═══════════════════════════════════════════════════════════
+// IMPOSTAZIONI QQE MOD
+// ═══════════════════════════════════════════════════════════
+rsiLengthPrimary      = input.int(6,      title="RSI Length Primary",      group="QQE MOD Settings")
+rsiSmoothingPrimary   = input.int(5,      title="RSI Smoothing Primary",   group="QQE MOD Settings")
+qqeFactorPrimary      = input.float(3.0,  title="QQE Factor Primary",      group="QQE MOD Settings")
+rsiLengthSecondary    = input.int(6,      title="RSI Length Secondary",    group="QQE MOD Settings")
+rsiSmoothingSecondary = input.int(5,      title="RSI Smoothing Secondary", group="QQE MOD Settings")
+qqeFactorSecondary    = input.float(1.61, title="QQE Factor Secondary",    group="QQE MOD Settings")
+bollingerLength       = input.int(50,     title="Bollinger Length",         group="QQE MOD Settings")
+bollingerMultiplier   = input.float(0.35, title="Bollinger Multiplier",     group="QQE MOD Settings")
+thresholdSecondary    = input.float(3.0,  title="Threshold Secondary",      group="QQE MOD Settings")
 
-// ══════════════════════════════════════════════════════════════════════════════
-//  INPUTS — TABELLA MAJOR PAIRS
-//  N.B.: 7 pair × 5 TF = 35 request.security() (limite Pine Script: 40)
-//        Con 6 TF si arriverebbe a 42, superando il limite → usare 5 TF.
-// ══════════════════════════════════════════════════════════════════════════════
-grpTbl  = "Tabella Major Pairs"
-tf1     = input.timeframe("1",   "TF 1", group=grpTbl)
-tf2     = input.timeframe("5",   "TF 2", group=grpTbl)
-tf3     = input.timeframe("15",  "TF 3", group=grpTbl)
-tf4     = input.timeframe("60",  "TF 4", group=grpTbl)
-tf5     = input.timeframe("240", "TF 5", group=grpTbl)
-tbl_pos = input.string("Bottom Right", "Posizione Tabella",
+// ═══════════════════════════════════════════════════════════
+// IMPOSTAZIONI TABELLA 7 MAJOR PAIRS
+// N.B.: 7 pair × 3 TF = 21 request.security() — limite Pine Script: 40
+// I TF sono configurabili: input.timeframe() non aggiunge overhead.
+// ═══════════════════════════════════════════════════════════
+grpTbl   = "Major Pairs Table"
+showTable = input.bool(true,    title="Mostra Tabella",    group=grpTbl)
+tf1       = input.timeframe("15",  title="TF 1 (default M15)", group=grpTbl)
+tf2       = input.timeframe("60",  title="TF 2 (default H1)",  group=grpTbl)
+tf3       = input.timeframe("240", title="TF 3 (default H4)",  group=grpTbl)
+tbl_pos   = input.string("Top Right", title="Posizione",
      options=["Top Left","Top Right","Bottom Left","Bottom Right"], group=grpTbl)
 
-
-// ══════════════════════════════════════════════════════════════════════════════
-//  FUNZIONI SEGNALE  ← non modificare
-// ══════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+// FUNZIONE QQE
+// ═══════════════════════════════════════════════════════════
 calculateQQE(rsiLen, smoothing, qqeFactor, src) =>
     wildersLength = rsiLen * 2 - 1
     rsi = ta.rsi(src, rsiLen)
@@ -72,6 +66,9 @@ calculateQQE(rsiLen, smoothing, qqeFactor, src) =>
         trendDir := trendDir[1]
     smoothedRsi
 
+// ═══════════════════════════════════════════════════════════
+// FUNZIONE SEGNALE COMPLETO
+// ═══════════════════════════════════════════════════════════
 calcAll() =>
     e50  = ta.ema(close, ema50_len)
     e100 = ta.ema(close, ema100_len)
@@ -108,82 +105,70 @@ evalSignal(bsL, bsS, c, e50, emaL, emaS, qqeL, qqeS, trendL, trendS, mem) =>
     sigS = emaS and tmS and qqeS and trendS
     sigL ? 1 : sigS ? -1 : 0
 
-// ══════════════════════════════════════════════════════════════════════════════
-//  SEGNALE CHART CORRENTE  (usato per gli alert)
-// ══════════════════════════════════════════════════════════════════════════════
-[bsL0, bsS0, c0, e50_0, emaL0, emaS0, qqeL0, qqeS0, trendL0, trendS0] = calcAll()
-curSig    = evalSignal(bsL0, bsS0, c0, e50_0, emaL0, emaS0, qqeL0, qqeS0, trendL0, trendS0, mem)
-long_sig  = curSig == 1
-short_sig = curSig == -1
+// ═══════════════════════════════════════════════════════════
+// SEGNALE CHART CORRENTE
+// ═══════════════════════════════════════════════════════════
+[bsL0, bsS0, c0, e500, emaL0, emaS0, qqeL0, qqeS0, trendL0, trendS0] = calcAll()
 
-// ══════════════════════════════════════════════════════════════════════════════
-//  REQUEST.SECURITY — 7 pair × 5 TF = 35 chiamate (< limite 40)
-// ══════════════════════════════════════════════════════════════════════════════
+sig0     = evalSignal(bsL0, bsS0, c0, e500, emaL0, emaS0, qqeL0, qqeS0, trendL0, trendS0, touchMemory)
+sig0prev = evalSignal(bsL0[1], bsS0[1], c0[1], e500[1], emaL0[1], emaS0[1], qqeL0[1], qqeS0[1], trendL0[1], trendS0[1], touchMemory)
+
+signalLongNew  = sig0 == 1  and sig0prev != 1
+signalShortNew = sig0 == -1 and sig0prev != -1
+
+// ═══════════════════════════════════════════════════════════
+// PLOT PALLINO
+// ═══════════════════════════════════════════════════════════
+plotshape(signalLongNew,  title="Segnale LONG",  location=location.belowbar, style=shape.circle, color=dotColor, size=size.normal)
+plotshape(signalShortNew, title="Segnale SHORT", location=location.abovebar, style=shape.circle, color=dotColor, size=size.normal)
+
+// ═══════════════════════════════════════════════════════════
+// REQUEST.SECURITY — 7 pair × 3 TF = 21 chiamate
+// ═══════════════════════════════════════════════════════════
 f_get(sym, tf) =>
-    [a, b, c, d, e, f, g, h, ii, j] = request.security(sym, tf, calcAll())
-    evalSignal(a, b, c, d, e, f, g, h, ii, j, mem)
+    [a, b, c, d, e, f, g, h, ii, j] = request.security(sym, tf, calcAll(), lookahead=barmerge.lookahead_off)
+    evalSignal(a, b, c, d, e, f, g, h, ii, j, touchMemory)
 
 // EURUSD
 eu_t1 = f_get("EURUSD", tf1)
 eu_t2 = f_get("EURUSD", tf2)
 eu_t3 = f_get("EURUSD", tf3)
-eu_t4 = f_get("EURUSD", tf4)
-eu_t5 = f_get("EURUSD", tf5)
 
 // GBPUSD
 gu_t1 = f_get("GBPUSD", tf1)
 gu_t2 = f_get("GBPUSD", tf2)
 gu_t3 = f_get("GBPUSD", tf3)
-gu_t4 = f_get("GBPUSD", tf4)
-gu_t5 = f_get("GBPUSD", tf5)
 
 // USDJPY
 uj_t1 = f_get("USDJPY", tf1)
 uj_t2 = f_get("USDJPY", tf2)
 uj_t3 = f_get("USDJPY", tf3)
-uj_t4 = f_get("USDJPY", tf4)
-uj_t5 = f_get("USDJPY", tf5)
 
 // USDCHF
 uc_t1 = f_get("USDCHF", tf1)
 uc_t2 = f_get("USDCHF", tf2)
 uc_t3 = f_get("USDCHF", tf3)
-uc_t4 = f_get("USDCHF", tf4)
-uc_t5 = f_get("USDCHF", tf5)
 
 // USDCAD
 ud_t1 = f_get("USDCAD", tf1)
 ud_t2 = f_get("USDCAD", tf2)
 ud_t3 = f_get("USDCAD", tf3)
-ud_t4 = f_get("USDCAD", tf4)
-ud_t5 = f_get("USDCAD", tf5)
 
 // AUDUSD
 au_t1 = f_get("AUDUSD", tf1)
 au_t2 = f_get("AUDUSD", tf2)
 au_t3 = f_get("AUDUSD", tf3)
-au_t4 = f_get("AUDUSD", tf4)
-au_t5 = f_get("AUDUSD", tf5)
 
 // NZDUSD
 nz_t1 = f_get("NZDUSD", tf1)
 nz_t2 = f_get("NZDUSD", tf2)
 nz_t3 = f_get("NZDUSD", tf3)
-nz_t4 = f_get("NZDUSD", tf4)
-nz_t5 = f_get("NZDUSD", tf5)
 
-// ══════════════════════════════════════════════════════════════════════════════
-//  TABELLA
-// ══════════════════════════════════════════════════════════════════════════════
-C_HEAD  = color.new(color.gray,  20)
-C_BG    = color.new(color.gray,  80)
-C_LONG  = color.new(color.green, 20)
-C_SHORT = color.new(color.red,   20)
-C_TXT   = color.white
-C_DOT   = color.yellow
-
-f_tf_label(tf) =>
-    switch tf
+// ═══════════════════════════════════════════════════════════
+// TABELLA 7 MAJOR PAIRS
+// ═══════════════════════════════════════════════════════════
+tfLabel(lbl) =>
+    switch lbl
         "1"   => "M1"
         "3"   => "M3"
         "5"   => "M5"
@@ -198,7 +183,14 @@ f_tf_label(tf) =>
         "D"   => "D1"
         "W"   => "W1"
         "M"   => "MN"
-        =>       tf
+        =>       lbl
+
+cellBg(sig)  => sig == 1 ? color.new(color.green, 75) : sig == -1 ? color.new(color.red, 75) : color.new(color.black, 70)
+cellTxt(sig) => sig != 0 ? "●" : "○"
+cellCol(sig) => sig != 0 ? color.yellow : color.new(color.gray, 50)
+
+C_HEAD = color.new(color.gray, 60)
+C_TXT  = color.white
 
 tbl_position = switch tbl_pos
     "Top Left"     => position.top_left
@@ -206,92 +198,65 @@ tbl_position = switch tbl_pos
     "Bottom Left"  => position.bottom_left
     =>               position.bottom_right
 
-var table tbl = na
+var table mtfTable = na
 
-if barstate.islast
-    tbl := table.new(tbl_position, 6, 8,
-         border_width=1,
-         border_color=color.new(color.gray, 50),
-         frame_width=1,
-         frame_color=color.new(color.gray, 30))
+if showTable and barstate.islast
+    // 4 colonne: nome pair + 3 TF  |  8 righe: header + 7 pair
+    mtfTable := table.new(tbl_position, 4, 8,
+         border_width=1, border_color=color.new(color.gray, 50),
+         frame_width=1,  frame_color=color.new(color.gray, 40))
 
-    // ── Intestazione colonne ──────────────────────────────────────────────────
-    table.cell(tbl, 0, 0, "Pair",
-         bgcolor=C_HEAD, text_color=C_TXT, text_size=size.small, text_halign=text.align_center)
-    table.cell(tbl, 1, 0, f_tf_label(tf1),
-         bgcolor=C_HEAD, text_color=C_TXT, text_size=size.small, text_halign=text.align_center)
-    table.cell(tbl, 2, 0, f_tf_label(tf2),
-         bgcolor=C_HEAD, text_color=C_TXT, text_size=size.small, text_halign=text.align_center)
-    table.cell(tbl, 3, 0, f_tf_label(tf3),
-         bgcolor=C_HEAD, text_color=C_TXT, text_size=size.small, text_halign=text.align_center)
-    table.cell(tbl, 4, 0, f_tf_label(tf4),
-         bgcolor=C_HEAD, text_color=C_TXT, text_size=size.small, text_halign=text.align_center)
-    table.cell(tbl, 5, 0, f_tf_label(tf5),
-         bgcolor=C_HEAD, text_color=C_TXT, text_size=size.small, text_halign=text.align_center)
+    // Header
+    table.cell(mtfTable, 0, 0, "Pair",          bgcolor=C_HEAD, text_color=C_TXT, text_size=size.small, text_halign=text.align_center)
+    table.cell(mtfTable, 1, 0, tfLabel(tf1),    bgcolor=C_HEAD, text_color=C_TXT, text_size=size.small, text_halign=text.align_center)
+    table.cell(mtfTable, 2, 0, tfLabel(tf2),    bgcolor=C_HEAD, text_color=C_TXT, text_size=size.small, text_halign=text.align_center)
+    table.cell(mtfTable, 3, 0, tfLabel(tf3),    bgcolor=C_HEAD, text_color=C_TXT, text_size=size.small, text_halign=text.align_center)
 
-    // ── Riga 1: EURUSD ────────────────────────────────────────────────────────
-    table.cell(tbl, 0, 1, "EURUSD", bgcolor=C_HEAD, text_color=C_TXT, text_size=size.small)
-    table.cell(tbl, 1, 1, eu_t1 != 0 ? "●" : "", bgcolor=eu_t1 == 1 ? C_LONG : eu_t1 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
-    table.cell(tbl, 2, 1, eu_t2 != 0 ? "●" : "", bgcolor=eu_t2 == 1 ? C_LONG : eu_t2 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
-    table.cell(tbl, 3, 1, eu_t3 != 0 ? "●" : "", bgcolor=eu_t3 == 1 ? C_LONG : eu_t3 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
-    table.cell(tbl, 4, 1, eu_t4 != 0 ? "●" : "", bgcolor=eu_t4 == 1 ? C_LONG : eu_t4 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
-    table.cell(tbl, 5, 1, eu_t5 != 0 ? "●" : "", bgcolor=eu_t5 == 1 ? C_LONG : eu_t5 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+    // EURUSD
+    table.cell(mtfTable, 0, 1, "EURUSD", bgcolor=C_HEAD, text_color=C_TXT, text_size=size.small)
+    table.cell(mtfTable, 1, 1, cellTxt(eu_t1), text_color=cellCol(eu_t1), bgcolor=cellBg(eu_t1), text_size=size.normal, text_halign=text.align_center)
+    table.cell(mtfTable, 2, 1, cellTxt(eu_t2), text_color=cellCol(eu_t2), bgcolor=cellBg(eu_t2), text_size=size.normal, text_halign=text.align_center)
+    table.cell(mtfTable, 3, 1, cellTxt(eu_t3), text_color=cellCol(eu_t3), bgcolor=cellBg(eu_t3), text_size=size.normal, text_halign=text.align_center)
 
-    // ── Riga 2: GBPUSD ────────────────────────────────────────────────────────
-    table.cell(tbl, 0, 2, "GBPUSD", bgcolor=C_HEAD, text_color=C_TXT, text_size=size.small)
-    table.cell(tbl, 1, 2, gu_t1 != 0 ? "●" : "", bgcolor=gu_t1 == 1 ? C_LONG : gu_t1 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
-    table.cell(tbl, 2, 2, gu_t2 != 0 ? "●" : "", bgcolor=gu_t2 == 1 ? C_LONG : gu_t2 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
-    table.cell(tbl, 3, 2, gu_t3 != 0 ? "●" : "", bgcolor=gu_t3 == 1 ? C_LONG : gu_t3 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
-    table.cell(tbl, 4, 2, gu_t4 != 0 ? "●" : "", bgcolor=gu_t4 == 1 ? C_LONG : gu_t4 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
-    table.cell(tbl, 5, 2, gu_t5 != 0 ? "●" : "", bgcolor=gu_t5 == 1 ? C_LONG : gu_t5 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+    // GBPUSD
+    table.cell(mtfTable, 0, 2, "GBPUSD", bgcolor=C_HEAD, text_color=C_TXT, text_size=size.small)
+    table.cell(mtfTable, 1, 2, cellTxt(gu_t1), text_color=cellCol(gu_t1), bgcolor=cellBg(gu_t1), text_size=size.normal, text_halign=text.align_center)
+    table.cell(mtfTable, 2, 2, cellTxt(gu_t2), text_color=cellCol(gu_t2), bgcolor=cellBg(gu_t2), text_size=size.normal, text_halign=text.align_center)
+    table.cell(mtfTable, 3, 2, cellTxt(gu_t3), text_color=cellCol(gu_t3), bgcolor=cellBg(gu_t3), text_size=size.normal, text_halign=text.align_center)
 
-    // ── Riga 3: USDJPY ────────────────────────────────────────────────────────
-    table.cell(tbl, 0, 3, "USDJPY", bgcolor=C_HEAD, text_color=C_TXT, text_size=size.small)
-    table.cell(tbl, 1, 3, uj_t1 != 0 ? "●" : "", bgcolor=uj_t1 == 1 ? C_LONG : uj_t1 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
-    table.cell(tbl, 2, 3, uj_t2 != 0 ? "●" : "", bgcolor=uj_t2 == 1 ? C_LONG : uj_t2 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
-    table.cell(tbl, 3, 3, uj_t3 != 0 ? "●" : "", bgcolor=uj_t3 == 1 ? C_LONG : uj_t3 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
-    table.cell(tbl, 4, 3, uj_t4 != 0 ? "●" : "", bgcolor=uj_t4 == 1 ? C_LONG : uj_t4 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
-    table.cell(tbl, 5, 3, uj_t5 != 0 ? "●" : "", bgcolor=uj_t5 == 1 ? C_LONG : uj_t5 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+    // USDJPY
+    table.cell(mtfTable, 0, 3, "USDJPY", bgcolor=C_HEAD, text_color=C_TXT, text_size=size.small)
+    table.cell(mtfTable, 1, 3, cellTxt(uj_t1), text_color=cellCol(uj_t1), bgcolor=cellBg(uj_t1), text_size=size.normal, text_halign=text.align_center)
+    table.cell(mtfTable, 2, 3, cellTxt(uj_t2), text_color=cellCol(uj_t2), bgcolor=cellBg(uj_t2), text_size=size.normal, text_halign=text.align_center)
+    table.cell(mtfTable, 3, 3, cellTxt(uj_t3), text_color=cellCol(uj_t3), bgcolor=cellBg(uj_t3), text_size=size.normal, text_halign=text.align_center)
 
-    // ── Riga 4: USDCHF ────────────────────────────────────────────────────────
-    table.cell(tbl, 0, 4, "USDCHF", bgcolor=C_HEAD, text_color=C_TXT, text_size=size.small)
-    table.cell(tbl, 1, 4, uc_t1 != 0 ? "●" : "", bgcolor=uc_t1 == 1 ? C_LONG : uc_t1 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
-    table.cell(tbl, 2, 4, uc_t2 != 0 ? "●" : "", bgcolor=uc_t2 == 1 ? C_LONG : uc_t2 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
-    table.cell(tbl, 3, 4, uc_t3 != 0 ? "●" : "", bgcolor=uc_t3 == 1 ? C_LONG : uc_t3 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
-    table.cell(tbl, 4, 4, uc_t4 != 0 ? "●" : "", bgcolor=uc_t4 == 1 ? C_LONG : uc_t4 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
-    table.cell(tbl, 5, 4, uc_t5 != 0 ? "●" : "", bgcolor=uc_t5 == 1 ? C_LONG : uc_t5 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+    // USDCHF
+    table.cell(mtfTable, 0, 4, "USDCHF", bgcolor=C_HEAD, text_color=C_TXT, text_size=size.small)
+    table.cell(mtfTable, 1, 4, cellTxt(uc_t1), text_color=cellCol(uc_t1), bgcolor=cellBg(uc_t1), text_size=size.normal, text_halign=text.align_center)
+    table.cell(mtfTable, 2, 4, cellTxt(uc_t2), text_color=cellCol(uc_t2), bgcolor=cellBg(uc_t2), text_size=size.normal, text_halign=text.align_center)
+    table.cell(mtfTable, 3, 4, cellTxt(uc_t3), text_color=cellCol(uc_t3), bgcolor=cellBg(uc_t3), text_size=size.normal, text_halign=text.align_center)
 
-    // ── Riga 5: USDCAD ────────────────────────────────────────────────────────
-    table.cell(tbl, 0, 5, "USDCAD", bgcolor=C_HEAD, text_color=C_TXT, text_size=size.small)
-    table.cell(tbl, 1, 5, ud_t1 != 0 ? "●" : "", bgcolor=ud_t1 == 1 ? C_LONG : ud_t1 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
-    table.cell(tbl, 2, 5, ud_t2 != 0 ? "●" : "", bgcolor=ud_t2 == 1 ? C_LONG : ud_t2 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
-    table.cell(tbl, 3, 5, ud_t3 != 0 ? "●" : "", bgcolor=ud_t3 == 1 ? C_LONG : ud_t3 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
-    table.cell(tbl, 4, 5, ud_t4 != 0 ? "●" : "", bgcolor=ud_t4 == 1 ? C_LONG : ud_t4 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
-    table.cell(tbl, 5, 5, ud_t5 != 0 ? "●" : "", bgcolor=ud_t5 == 1 ? C_LONG : ud_t5 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+    // USDCAD
+    table.cell(mtfTable, 0, 5, "USDCAD", bgcolor=C_HEAD, text_color=C_TXT, text_size=size.small)
+    table.cell(mtfTable, 1, 5, cellTxt(ud_t1), text_color=cellCol(ud_t1), bgcolor=cellBg(ud_t1), text_size=size.normal, text_halign=text.align_center)
+    table.cell(mtfTable, 2, 5, cellTxt(ud_t2), text_color=cellCol(ud_t2), bgcolor=cellBg(ud_t2), text_size=size.normal, text_halign=text.align_center)
+    table.cell(mtfTable, 3, 5, cellTxt(ud_t3), text_color=cellCol(ud_t3), bgcolor=cellBg(ud_t3), text_size=size.normal, text_halign=text.align_center)
 
-    // ── Riga 6: AUDUSD ────────────────────────────────────────────────────────
-    table.cell(tbl, 0, 6, "AUDUSD", bgcolor=C_HEAD, text_color=C_TXT, text_size=size.small)
-    table.cell(tbl, 1, 6, au_t1 != 0 ? "●" : "", bgcolor=au_t1 == 1 ? C_LONG : au_t1 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
-    table.cell(tbl, 2, 6, au_t2 != 0 ? "●" : "", bgcolor=au_t2 == 1 ? C_LONG : au_t2 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
-    table.cell(tbl, 3, 6, au_t3 != 0 ? "●" : "", bgcolor=au_t3 == 1 ? C_LONG : au_t3 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
-    table.cell(tbl, 4, 6, au_t4 != 0 ? "●" : "", bgcolor=au_t4 == 1 ? C_LONG : au_t4 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
-    table.cell(tbl, 5, 6, au_t5 != 0 ? "●" : "", bgcolor=au_t5 == 1 ? C_LONG : au_t5 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+    // AUDUSD
+    table.cell(mtfTable, 0, 6, "AUDUSD", bgcolor=C_HEAD, text_color=C_TXT, text_size=size.small)
+    table.cell(mtfTable, 1, 6, cellTxt(au_t1), text_color=cellCol(au_t1), bgcolor=cellBg(au_t1), text_size=size.normal, text_halign=text.align_center)
+    table.cell(mtfTable, 2, 6, cellTxt(au_t2), text_color=cellCol(au_t2), bgcolor=cellBg(au_t2), text_size=size.normal, text_halign=text.align_center)
+    table.cell(mtfTable, 3, 6, cellTxt(au_t3), text_color=cellCol(au_t3), bgcolor=cellBg(au_t3), text_size=size.normal, text_halign=text.align_center)
 
-    // ── Riga 7: NZDUSD ────────────────────────────────────────────────────────
-    table.cell(tbl, 0, 7, "NZDUSD", bgcolor=C_HEAD, text_color=C_TXT, text_size=size.small)
-    table.cell(tbl, 1, 7, nz_t1 != 0 ? "●" : "", bgcolor=nz_t1 == 1 ? C_LONG : nz_t1 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
-    table.cell(tbl, 2, 7, nz_t2 != 0 ? "●" : "", bgcolor=nz_t2 == 1 ? C_LONG : nz_t2 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
-    table.cell(tbl, 3, 7, nz_t3 != 0 ? "●" : "", bgcolor=nz_t3 == 1 ? C_LONG : nz_t3 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
-    table.cell(tbl, 4, 7, nz_t4 != 0 ? "●" : "", bgcolor=nz_t4 == 1 ? C_LONG : nz_t4 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
-    table.cell(tbl, 5, 7, nz_t5 != 0 ? "●" : "", bgcolor=nz_t5 == 1 ? C_LONG : nz_t5 == -1 ? C_SHORT : C_BG, text_color=C_DOT, text_size=size.normal, text_halign=text.align_center)
+    // NZDUSD
+    table.cell(mtfTable, 0, 7, "NZDUSD", bgcolor=C_HEAD, text_color=C_TXT, text_size=size.small)
+    table.cell(mtfTable, 1, 7, cellTxt(nz_t1), text_color=cellCol(nz_t1), bgcolor=cellBg(nz_t1), text_size=size.normal, text_halign=text.align_center)
+    table.cell(mtfTable, 2, 7, cellTxt(nz_t2), text_color=cellCol(nz_t2), bgcolor=cellBg(nz_t2), text_size=size.normal, text_halign=text.align_center)
+    table.cell(mtfTable, 3, 7, cellTxt(nz_t3), text_color=cellCol(nz_t3), bgcolor=cellBg(nz_t3), text_size=size.normal, text_halign=text.align_center)
 
-// ══════════════════════════════════════════════════════════════════════════════
-//  ALERT — chart corrente
-// ══════════════════════════════════════════════════════════════════════════════
-alertcondition(long_sig,  "Long Signal",  "LONG: EMA in ordine + tocco EMA50 + QQE verde + Trend Meter verde")
-alertcondition(short_sig, "Short Signal", "SHORT: EMA in ordine + tocco EMA50 + QQE rosso + Trend Meter rosso")
-
-if long_sig
-    alert(alert_msg_long,  alert.freq_once_per_bar)
-if short_sig
-    alert(alert_msg_short, alert.freq_once_per_bar)
+// ═══════════════════════════════════════════════════════════
+// ALERT
+// ═══════════════════════════════════════════════════════════
+alertcondition(signalLongNew,                   title="Segnale LONG",         message="MY STRATEGY - LONG")
+alertcondition(signalShortNew,                  title="Segnale SHORT",        message="MY STRATEGY - SHORT")
+alertcondition(signalLongNew or signalShortNew, title="Segnale LONG o SHORT", message="MY STRATEGY - SEGNALE")
